@@ -56,7 +56,7 @@
 
   <div class="card">
     <h2>🔢 Buscar por número de dorsal</h2>
-    <input type="text" id="input-dorsal" placeholder="Ingresá tu número de dorsal (ej: 123)" />
+    <input type="text" id="input-dorsal" placeholder="Ingresá tu número de dorsal (ej: 783)" />
     <button class="btn btn-red" onclick="buscarPorDorsal()">Buscar mis fotos</button>
   </div>
 
@@ -74,7 +74,7 @@
 
   <div class="loading" id="loading">
     <div class="spinner"></div>
-    <p>Buscando tus fotos...</p>
+    <p id="loading-text">Buscando tus fotos...</p>
   </div>
 
   <div id="resultados"></div>
@@ -84,6 +84,7 @@
 <script>
   const SUPABASE_URL = 'https://aiijwyddfjrlwrgpceou.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFpaWp3eWRkZmpybHdyZ3BjZW91Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MTU0MTksImV4cCI6MjA5NTQ5MTQxOX0.FK9Mrztc9FuPbzEqg3qWSInhD4F1M9kh6wpNNrp--BM';
+  const MODAL_URL = 'https://estudioraw--studio-raw-faces-buscar-por-cara.modal.run';
 
   const { createClient } = supabase;
   const db = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -119,7 +120,7 @@
     const evento = document.getElementById('evento-select').value;
     if (!dorsal) { alert('Ingresá tu número de dorsal'); return; }
 
-    mostrarLoading(true);
+    mostrarLoading(true, 'Buscando tus fotos...');
     let query = db.from('fotos').select('*').ilike('dorsales', `%${dorsal}%`);
     if (evento) query = query.eq('evento', evento);
     const { data, error } = await query;
@@ -128,11 +129,34 @@
   }
 
   async function buscarPorSelfie() {
-    alert('La búsqueda por selfie estará disponible próximamente. Por ahora usá el número de dorsal.');
+    const input = document.getElementById('input-selfie');
+    const evento = document.getElementById('evento-select').value;
+    if (!input.files[0]) { alert('Primero subí una selfie'); return; }
+
+    mostrarLoading(true, '🔍 Analizando tu cara... esto puede tardar 1-2 minutos');
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const base64 = e.target.result.split(',')[1];
+      try {
+        const resp = await fetch(MODAL_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ selfie: base64, evento: evento })
+        });
+        const data = await resp.json();
+        mostrarResultados(data.fotos);
+      } catch(err) {
+        mostrarLoading(false);
+        alert('Error al buscar. Intentá de nuevo.');
+      }
+    };
+    reader.readAsDataURL(input.files[0]);
   }
 
-  function mostrarLoading(show) {
+  function mostrarLoading(show, texto) {
     document.getElementById('loading').style.display = show ? 'block' : 'none';
+    if (texto) document.getElementById('loading-text').innerText = texto;
     document.getElementById('resultados').innerHTML = '';
   }
 
@@ -140,7 +164,7 @@
     mostrarLoading(false);
     const div = document.getElementById('resultados');
     if (!fotos || fotos.length === 0) {
-      div.innerHTML = '<div class="sin-resultados">😕 No encontramos fotos con ese dorsal.<br>Verificá el número e intentá de nuevo.</div>';
+      div.innerHTML = '<div class="sin-resultados">😕 No encontramos fotos.<br>Verificá el número o intentá con otra selfie.</div>';
       return;
     }
     div.innerHTML = `<h2>📸 ${fotos.length} foto${fotos.length > 1 ? 's' : ''} encontrada${fotos.length > 1 ? 's' : ''}</h2>
