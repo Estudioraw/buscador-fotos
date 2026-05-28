@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Buscador de Fotos — Studio Raw</title>
+  <title>Buscador de Fotos — Facundo Ledesma Fotografía</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -23,29 +23,36 @@
     .btn-green:hover { background: #21867a; }
     .btn-gray { background: #333; color: white; margin-bottom: 10px; }
     .btn-gray:hover { background: #444; }
+    .btn-yellow { background: #f4d03f; color: #1a1a1a; margin-top: 8px; }
+    .btn-yellow:hover { background: #d4ac0d; }
     .divider { text-align: center; color: #555; margin: 10px 0; }
     #preview-selfie { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; display: none; margin: 10px auto; border: 3px solid #2a9d8f; }
     #resultados { margin-top: 30px; }
     #resultados h2 { margin-bottom: 15px; color: #e63946; }
-    .grid-fotos { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
-    .foto-card { background: #1a1a1a; border-radius: 8px; overflow: hidden; }
+    .grid-fotos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; }
+    .foto-card { background: #1a1a1a; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
     .foto-card img { width: 100%; height: 180px; object-fit: cover; }
-    .foto-card p { padding: 8px; font-size: 0.8rem; color: #aaa; text-align: center; }
+    .foto-card-info { padding: 10px; }
+    .foto-card-info p { font-size: 0.8rem; color: #aaa; margin-bottom: 8px; }
     .loading { text-align: center; padding: 40px; color: #aaa; display: none; }
     .spinner { border: 3px solid #333; border-top: 3px solid #e63946; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 15px; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .sin-resultados { text-align: center; padding: 40px; color: #aaa; }
     .evento-select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #2a2a2a; color: white; font-size: 1rem; margin-bottom: 10px; }
+    .precio { color: #f4d03f; font-weight: bold; font-size: 1rem; }
+    .alerta { background: #2a9d8f; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; display: none; }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>📸 Studio Raw</h1>
+  <h1>📸 Facundo Ledesma Fotografía</h1>
   <p>Encontrá tus fotos del evento</p>
 </header>
 
 <div class="container">
+
+  <div class="alerta" id="alerta-pago"></div>
 
   <div class="card">
     <h2>🏁 Seleccioná el evento</h2>
@@ -84,10 +91,19 @@
 <script>
   const SUPABASE_URL = 'https://aiijwyddfjrlwrgpceou.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFpaWp3eWRkZmpybHdyZ3BjZW91Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MTU0MTksImV4cCI6MjA5NTQ5MTQxOX0.FK9Mrztc9FuPbzEqg3qWSInhD4F1M9kh6wpNNrp--BM';
-  const MODAL_URL = 'https://estudioraw--studio-raw-faces-buscar-por-cara.modal.run';
+  const MODAL_CARA_URL = 'https://estudioraw--studio-raw-faces-buscar-por-cara.modal.run';
+  const MODAL_PAGO_URL = 'https://estudioraw--studio-raw-faces-crear-pago.modal.run';
 
   const { createClient } = supabase;
   const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // Verificar si volvió de un pago
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('pago') === 'exitoso') {
+    const alerta = document.getElementById('alerta-pago');
+    alerta.style.display = 'block';
+    alerta.innerHTML = '✅ ¡Pago exitoso! Pronto recibirás tu foto por WhatsApp.';
+  }
 
   async function cargarEventos() {
     const { data, error } = await db.from('fotos').select('evento');
@@ -119,7 +135,6 @@
     const dorsal = document.getElementById('input-dorsal').value.trim();
     const evento = document.getElementById('evento-select').value;
     if (!dorsal) { alert('Ingresá tu número de dorsal'); return; }
-
     mostrarLoading(true, 'Buscando tus fotos...');
     let query = db.from('fotos').select('*').ilike('dorsales', `%${dorsal}%`);
     if (evento) query = query.eq('evento', evento);
@@ -132,14 +147,12 @@
     const input = document.getElementById('input-selfie');
     const evento = document.getElementById('evento-select').value;
     if (!input.files[0]) { alert('Primero subí una selfie'); return; }
-
     mostrarLoading(true, '🔍 Analizando tu cara... esto puede tardar 1-2 minutos');
-
     const reader = new FileReader();
     reader.onload = async (e) => {
       const base64 = e.target.result.split(',')[1];
       try {
-        const resp = await fetch(MODAL_URL, {
+        const resp = await fetch(MODAL_CARA_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ selfie: base64, evento: evento })
@@ -152,6 +165,31 @@
       }
     };
     reader.readAsDataURL(input.files[0]);
+  }
+
+  async function comprarFoto(nombre_archivo, evento) {
+    const btn = document.getElementById('btn-comprar-' + nombre_archivo.replace('.', '_'));
+    btn.innerText = 'Generando pago...';
+    btn.disabled = true;
+    try {
+      const resp = await fetch(MODAL_PAGO_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre_archivo, evento })
+      });
+      const data = await resp.json();
+      if (data.link_pago) {
+        window.location.href = data.link_pago;
+      } else {
+        alert('Error al generar el pago. Intentá de nuevo.');
+        btn.innerText = '💳 Comprar — $2.000';
+        btn.disabled = false;
+      }
+    } catch(err) {
+      alert('Error al generar el pago. Intentá de nuevo.');
+      btn.innerText = '💳 Comprar — $2.000';
+      btn.disabled = false;
+    }
   }
 
   function mostrarLoading(show, texto) {
@@ -171,7 +209,11 @@
       <div class="grid-fotos">${fotos.map(f => `
         <div class="foto-card">
           <img src="${f.ruta_drive}" alt="${f.nombre_archivo}" onerror="this.src='https://placehold.co/200x180?text=Preview+no+disponible'" />
-          <p>${f.nombre_archivo}</p>
+          <div class="foto-card-info">
+            <p>${f.nombre_archivo}</p>
+            <p class="precio">$2.000 ARS</p>
+            <button class="btn btn-yellow" id="btn-comprar-${f.nombre_archivo.replace('.','_')}" onclick="comprarFoto('${f.nombre_archivo}', '${f.evento}')">💳 Comprar foto</button>
+          </div>
         </div>`).join('')}
       </div>`;
   }
